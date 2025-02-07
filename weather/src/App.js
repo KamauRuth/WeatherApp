@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import axios from "axios";
-import "./App.css"; // Import the external CSS file
+import "./App.css"; // Import external CSS file for styling
 
 const App = () => {
     const [city, setCity] = useState("");
@@ -8,112 +8,86 @@ const App = () => {
     const [forecast, setForecast] = useState(null);
     const [error, setError] = useState("");
 
-    // Function to get the current day's weather
+    // Fetch current weather
     const getWeather = async () => {
         setError("");
         setWeather(null);
-        setForecast(null); // Clear forecast when getting current weather
+        setForecast(null);
 
-        if (!city.trim()) {
-            setError("Please enter a valid city name.");
+        if (!city) {
+            setError("Please enter a city name.");
             return;
         }
 
         try {
-            const response = await axios.get(`http://localhost:5000/weather?city=${encodeURIComponent(city)}`);
-            if (response.data && response.data.main && response.data.weather) {
-                setWeather(response.data);
-            } else {
-                setError("Invalid response format from API.");
-            }
+            const response = await axios.get(`http://localhost:5000/weather?location=${city}`);
+            setWeather(response.data);
         } catch (err) {
             setError("Failed to fetch weather data.");
         }
     };
 
-    // Function to get the 5-day forecast
+    // Fetch 5-day forecast
     const getForecast = async () => {
         setError("");
         setWeather(null);
-        setForecast(null); // Clear current weather when getting forecast
+        setForecast(null);
 
-        if (!city.trim()) {
-            setError("Please enter a valid city name.");
+        if (!city) {
+            setError("Please enter a city name.");
             return;
         }
 
         try {
-            const response = await axios.get(`http://localhost:5000/forecast?city=${encodeURIComponent(city)}`);
-            if (response.data && response.data.list) {
-                setForecast(groupForecastByDay(response.data));
-            } else {
-                setError("Invalid forecast data format.");
-            }
+            const response = await axios.get(`http://localhost:5000/forecast?location=${city}`);
+            setForecast(response.data);
         } catch (err) {
             setError("Failed to fetch forecast data.");
         }
     };
 
-    // Function to group forecast data by day
-    const groupForecastByDay = (forecastData) => {
-        const grouped = {};
-
-        forecastData.list.forEach(item => {
-            const date = new Date(item.dt_txt).toLocaleDateString();
-
-            if (!grouped[date]) {
-                grouped[date] = [];
-            }
-            grouped[date].push(item);
-        });
-
-        // Extracting the first forecast of each day as a representative summary
-        return Object.keys(grouped).map(date => ({
-            date,
-            forecast: grouped[date][0] // Using first entry for a general forecast
-        }));
-    };
-
     return (
         <div className="container">
-            <h1>🌤️ Weather App</h1>
-
-            <input
-                type="text"
-                value={city}
-                onChange={(e) => setCity(e.target.value)}
-                placeholder="Enter city name"
-            />
-
-            <div className="buttons">
-                <button onClick={getWeather} className="btn-weather">Get Weather</button>
-                <button onClick={getForecast} className="btn-forecast">Get 5-Day Forecast</button>
+            <h1>Weather App</h1>
+            <div className="search-box">
+                <input
+                    type="text"
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    placeholder="Enter city name"
+                />
+                <button onClick={getWeather}>Get Weather</button>
+                <button onClick={getForecast}>Get 5-Day Forecast</button>
             </div>
 
             {error && <p className="error">{error}</p>}
 
-            {/* Display Current Weather */}
             {weather && (
-                <div className="current-weather">
-                    <h2>{weather.name}, {weather.sys?.country}</h2>
-                    <p>🌡️ Temperature: {weather.main.temp}°C</p>
-                    <p>💧 Humidity: {weather.main.humidity}%</p>
-                    <p>💨 Wind Speed: {weather.wind.speed} m/s</p>
-                    <p>☁️ {weather.weather[0].description}</p>
+                <div className="weather-box">
+                    <h2>{weather.city}, {weather.country}</h2>
+                    <img src={weather.icon} alt="Weather Icon" />
+                    <p>🌡 Temperature: {weather.temperature}°C</p>
+                    <p>💧 Humidity: {weather.humidity}%</p>
+                    <p>💨 Wind Speed: {weather.wind_speed} m/s</p>
+                    <p>📜 {weather.description}</p>
                 </div>
             )}
 
-            {/* Display 5-Day Forecast */}
             {forecast && (
-                <div className="forecast">
-                    <h2>📅 5-Day Forecast for {city}</h2>
-                    {forecast.map((day, index) => (
-                        <div key={index} className="forecast-day">
-                            <h4>{day.date}</h4>
-                            <p>🌡️ Temperature: {day.forecast.main.temp}°C</p>
-                            <p>☁️ {day.forecast.weather[0].description}</p>
-                        </div>
-                    ))}
+                <div className="forecast-box">
+                    <h2>{forecast.city}, {forecast.country} - 5-Day Forecast</h2>
+                    <div className="forecast-list">
+                        {forecast.forecast.map((day, index) => (
+                            <div key={index} className="forecast-day">
+                                <h4>{day.date}</h4>
+                                <img src={day.icon} alt="Weather Icon" />
+                                <p>🌡 {day.temperature}°C</p>
+                                <p>💧 {day.humidity}%</p>
+                                <p>💨 {day.wind_speed} m/s</p>
+                                <p>📜 {day.description}</p>
+                            </div>
+                        ))}
+                    </div>
                 </div>
             )}
         </div>

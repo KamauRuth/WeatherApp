@@ -1,63 +1,98 @@
 const express = require("express");
-const axios = require("axios"); 
+const axios = require("axios");
 const searchRouter = express.Router();
-const Search = require ('../models/searchModel');
+const Search = require("../models/Weather.js");
 
+// Function to validate date range
+const isValidDateRange = (startDate, endDate) => {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    return !isNaN(start) && !isNaN(end) && start <= end;
+};
 
-searchRouter.get('/weather', async (req, res) => {
-    
+// Function to validate location using OpenWeather API
+const validateLocation = async (location) => {
     try {
-        const { city, } = req.query;
-        
-        if (!city) {
-            return res.status(400).json({ error: "City is required" });
-        }
+        const response = await axios.get(
+            `http://api.openweathermap.org/data/2.5/weather?q=${location}&appid=${process.env.OPENWEATHER_API_KEY}`
+        );
+        return !!response.data;
+    } catch (error) {
+        return false;
+    }
+};
 
-        const apiKey = process.env.OPENWEATHER_API_KEY;
-        const url = `https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=${apiKey}&units=metric`;
+// 🔹 GET CURRENT WEATHER
+searchRouter.get("/weather", async (req, res) => {
+    const { location } = req.query;
 
-        const response = await axios.get(url);
-        const weatherData = response.data;
+    if (!(await validateLocation(location))) {
+        return res.status(400).json({ error: "Invalid location" });
+    }
 
-    
+    try {
+        const response = await axios.get(
+            `http://api.openweathermap.org/data/2.5/weather?q=${location}&appid=${process.env.OPENWEATHER_API_KEY}&units=metric`
+        );
 
-        // Save search to MongoDB
-        const newSearch = new Search({
-            city: weatherData.name,
-            temperature: weatherData.main.temp,
-            description: weatherData.weather[0].description,
-            country: weatherData.sys.country,
+        const data = response.data;
+
+        const weatherInfo = {
+            city: data.name,
+            country: data.sys.country,
+            temperature: data.main.temp,
+            humidity: data.main.humidity,
+            wind_speed: data.wind.speed,
+            description: data.weather[0].description,
+            icon: `http://openweathermap.org/img/wn/${data.weather[0].icon}.png`, // Weather icon
+        };
+
+        res.json(weatherInfo);
+    } catch (error) {
+        console.error("Error fetching weather data:", error.message);
+        res.status(500).json({ error: "Failed to fetch weather data" });
+    }
+});
+
+// 🔹 GET 5-DAY WEATHER FORECAST
+searchRouter.get("/forecast", async (req, res) => {
+    const { location } = req.query;
+
+    if (!(await validateLocation(location))) {
+        return res.status(400).json({ error: "Invalid location" });
+    }
+
+    try {
+        const response = await axios.get(
+            `http://api.openweathermap.org/data/2.5/forecast?q=${location}&appid=${process.env.OPENWEATHER_API_KEY}&units=metric`
+        );
+
+        const city = response.data.city.name;
+        const country = response.data.city.country;
+
+        // Grouping forecasts by day
+        const forecastByDay = {};
+        response.data.list.forEach((entry) => {
+            const date = new Date(entry.dt_txt).toLocaleDateString();
+            if (!forecastByDay[date]) {
+                forecastByDay[date] = {
+                    date,
+                    temperature: entry.main.temp,
+                    humidity: entry.main.humidity,
+                    wind_speed: entry.wind.speed,
+                    description: entry.weather[0].description,
+                    icon: `http://openweathermap.org/img/wn/${entry.weather[0].icon}.png`,
+                };
+            }
         });
-        await newSearch.save();
 
-        res.json(weatherData);
+        const forecastArray = Object.values(forecastByDay);
+
+        res.json({ city, country, forecast: forecastArray });
     } catch (error) {
-        res.status(500).json({ error: "Error fetching weather data" });
+        console.error("Error fetching forecast data:", error.message);
+        res.status(500).json({ error: "Failed to fetch forecast data" });
     }
 });
-
-searchRouter.get('/forecast', async (req, res) => {
-    try {
-        const { city } = req.query;
-
-        if (!city) {
-            return res.status(400).json({ error: "City is required" });
-        }
-
-        const apiKey = process.env.OPENWEATHER_API_KEY;
-        const url = `https://api.openweathermap.org/data/2.5/forecast?q=${city}&appid=${apiKey}&units=metric`;
-
-        const response = await axios.get(url);
-        const forecastData = response.data;
-
-        // Return the necessary forecast info
-        res.json(forecastData);
-    } catch (error) {
-        res.status(500).json({ error: "Error fetching forecast data" });
-    }
-});
-
-
-
 
 module.exports = searchRouter;
