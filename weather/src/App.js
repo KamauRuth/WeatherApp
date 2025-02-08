@@ -29,7 +29,7 @@ const WeatherApp = () => {
                 params: { location, startDate, endDate },
             });
             setWeatherData(response.data);
-            setForecastData(response.data.data); // Store only forecast data
+            setForecastData(response.data.data); 
         } catch (error) {
             console.error("Error fetching weather:", error.response?.data || error.message);
         }
@@ -47,7 +47,7 @@ const WeatherApp = () => {
                 location,
                 startDate,
                 endDate,
-                data: forecastData, // ✅ Use forecastData instead of weatherData
+                data: forecastData,
             });
             alert("Weather data saved!");
             fetchSavedWeather();
@@ -84,7 +84,7 @@ const WeatherApp = () => {
                 location,
                 startDate,
                 endDate,
-                data: forecastData, // ✅ Use forecastData
+                data: forecastData, 
             });
             alert("Weather record updated!");
             setEditId(null);
@@ -115,26 +115,56 @@ const WeatherApp = () => {
                 </>
             )}
 
-            <button onClick={fetchSavedWeather}>Retrieve Saved Weather</button>
+            {/* <button onClick={fetchSavedWeather}>Retrieve Saved Weather</button> */}
 
             {/* Display Current Weather */}
-            {weatherData && weatherData.data && weatherData.data.length > 0 && (
-                <div className="weather-card">
-                    <h3>
-                        {weatherData.location}, {weatherData.country}, {weatherData.startDate} to {weatherData.endDate}
-                    </h3>
-                    {weatherData.data.map((day, index) => (
-                        <div key={index} className="forecast-card">
-                            <p>Date: {day.date || `${day.startDate} - ${day.endDate}`}</p>
-                            <p>Temperature: {day.temperature}°C</p>
-                            <p>Humidity: {day.humidity}%</p>
-                            <p>Wind Speed: {day.wind_speed} m/s</p>
-                            <p>Description: {day.description}</p>
-                            <img src={day.icon} alt="Weather icon" />
-                        </div>
-                    ))}
-                </div>
-            )}
+            {/* Display Current Weather */}
+{weatherData && weatherData.data && weatherData.data.length > 0 ? (
+    <div className="weather-card">
+        <h3>
+            {weatherData.location}, {weatherData.country} ({weatherData.startDate} to {weatherData.endDate})
+        </h3>
+        {/* Display Current Weather with Day & Night Forecast */}
+{weatherData && weatherData.data && weatherData.data.length > 0 && (
+    <div className="weather-card">
+        <h3>
+            {weatherData.location}, {weatherData.country}, {weatherData.startDate} to {weatherData.endDate}
+        </h3>
+        {weatherData.data.map((dayEntry, index) => (
+            <div key={index} className="forecast-card">
+                <h4>Date: {dayEntry.date}</h4>
+
+                {dayEntry.day && (
+                    <div className="day-forecast">
+                        <p><strong>Day ({dayEntry.day.time}):</strong></p>
+                        <p>Temperature: {dayEntry.day.temperature}°C</p>
+                        <p>Humidity: {dayEntry.day.humidity}%</p>
+                        <p>Wind Speed: {dayEntry.day.wind_speed} m/s</p>
+                        <p>Description: {dayEntry.day.description}</p>
+                        <img src={dayEntry.day.icon} alt="Weather icon" />
+                    </div>
+                )}
+
+                {dayEntry.night && (
+                    <div className="night-forecast">
+                        <p><strong>Night ({dayEntry.night.time}):</strong></p>
+                        <p>Temperature: {dayEntry.night.temperature}°C</p>
+                        <p>Humidity: {dayEntry.night.humidity}%</p>
+                        <p>Wind Speed: {dayEntry.night.wind_speed} m/s</p>
+                        <p>Description: {dayEntry.night.description}</p>
+                        <img src={dayEntry.night.icon} alt="Weather icon" />
+                    </div>
+                )}
+            </div>
+        ))}
+    </div>
+)}
+
+    </div>
+) : (
+    <p>No weather data available. Try another date range.</p>
+)}
+
 
             {/* Display Saved Weather Data */}
             {savedWeather.length > 0 && (
@@ -148,8 +178,8 @@ const WeatherApp = () => {
                                 onClick={() => {
                                     setEditId(entry._id);
                                     setLocation(entry.location);
-                                    setStartDate(entry.startDate.split("T")[0]); // ✅ Fix date format
-                                    setEndDate(entry.endDate.split("T")[0]); // ✅ Fix date format
+                                    setStartDate(entry.startDate.split("T")[0]);
+                                    setEndDate(entry.endDate.split("T")[0]); 
                                 }}
                             >
                                 Edit

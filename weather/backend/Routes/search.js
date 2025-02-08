@@ -1,4 +1,4 @@
-// 
+
 
 const express = require("express");
 const axios = require("axios");
@@ -24,137 +24,95 @@ const validateLocation = async (location) => {
     }
 };
 
-// 🔹 GET CURRENT WEATHER
+// GET CURRENT WEATHER
 searchRouter.get("/weather", async (req, res) => {
-    const { location, startDate, endDate } = req.query;
-
-    if (!location || !startDate || !endDate) {
-        return res.status(400).json({ error: "Location, start date, and end date are required." });
-    }
-
-    if (new Date(startDate) > new Date(endDate)) {
-        return res.status(400).json({ error: "Start date must be before end date." });
-    }
-
     try {
+        const { location, startDate, endDate } = req.query;
+
+        if (!location || !startDate || !endDate) {
+            return res.status(400).json({ error: "Missing location or date range" });
+        }
+
+        console.log("Received Query:", { location, startDate, endDate });
+
         const response = await axios.get(
-            `http://api.openweathermap.org/data/2.5/forecast?q=${location}&appid=${process.env.OPENWEATHER_API_KEY}&units=metric`
+            `https://api.openweathermap.org/data/2.5/forecast?q=${location}&appid=${process.env.OPENWEATHER_API_KEY}&units=metric`
         );
 
-        // Grouping forecasts by day
-        const forecastByDay = {};
+        if (!response.data || !response.data.list) {
+            return res.status(404).json({ error: "No forecast data found" });
+        }
+
+        // Convert date strings to actual Date objects
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+
+        // Filter and keep only two time slots per day: 12:00 PM (day) & 9:00 PM (night)
+        const filteredForecast = {};
         response.data.list.forEach((entry) => {
-            const date = new Date(entry.dt_txt).toISOString().split("T")[0]; // Extract just the date
-            if (!forecastByDay[date]) {
-                forecastByDay[date] = {
-                    date,
-                    temperature: entry.main.temp,
-                    humidity: entry.main.humidity,
-                    wind_speed: entry.wind.speed,
-                    description: entry.weather[0].description,
-                    icon: `http://openweathermap.org/img/wn/${entry.weather[0].icon}.png`,
-                };
+            const entryDate = entry.dt_txt.split(" ")[0]; // Extract date (YYYY-MM-DD)
+            const entryTime = entry.dt_txt.split(" ")[1]; // Extract time (HH:mm:ss)
+
+            if (new Date(entryDate) >= start && new Date(entryDate) <= end) {
+                if (!filteredForecast[entryDate]) {
+                    filteredForecast[entryDate] = {};
+                }
+
+                if (entryTime === "12:00:00") {
+                    filteredForecast[entryDate].day = entry;
+                } else if (entryTime === "21:00:00") {
+                    filteredForecast[entryDate].night = entry;
+                }
             }
         });
 
-        res.json({ location, startDate, endDate, data: Object.values(forecastByDay) });
+        // Convert object to array format
+        const forecastList = Object.keys(filteredForecast).map((date) => ({
+            date,
+            day: filteredForecast[date].day
+                ? {
+                      temperature: filteredForecast[date].day.main.temp,
+                      humidity: filteredForecast[date].day.main.humidity,
+                      wind_speed: filteredForecast[date].day.wind.speed,
+                      description: filteredForecast[date].day.weather[0].description,
+                      icon: `http://openweathermap.org/img/w/${filteredForecast[date].day.weather[0].icon}.png`,
+                      time: "12:00 PM",
+                  }
+                : null,
+            night: filteredForecast[date].night
+                ? {
+                      temperature: filteredForecast[date].night.main.temp,
+                      humidity: filteredForecast[date].night.main.humidity,
+                      wind_speed: filteredForecast[date].night.wind.speed,
+                      description: filteredForecast[date].night.weather[0].description,
+                      icon: `http://openweathermap.org/img/w/${filteredForecast[date].night.weather[0].icon}.png`,
+                      time: "9:00 PM",
+                  }
+                : null,
+        }));
+
+        if (forecastList.length === 0) {
+            return res.status(404).json({ error: "No weather data available for this date range." });
+        }
+
+        res.json({
+            location: response.data.city.name,
+            country: response.data.city.country,
+            startDate,
+            endDate,
+            data: forecastList,
+        });
     } catch (error) {
-        console.error("Error fetching weather data:", error.message);
-        res.status(500).json({ error: "Failed to fetch weather data" });
+        console.error("Error fetching weather:", error);
+        res.status(500).json({ error: "Internal Server Error" });
     }
 });
 
-
-// // 🔹 GET 5-DAY WEATHER FORECAST
-// searchRouter.get("/forecast", async (req, res) => {
-//     const { location } = req.query;
-
-//     if (!(await validateLocation(location))) {
-//         return res.status(400).json({ error: "Invalid location" });
-//     }
-
-//     try {
-//         const response = await axios.get(
-//             `http://api.openweathermap.org/data/2.5/forecast?q=${location}&appid=${process.env.OPENWEATHER_API_KEY}&units=metric`
-//         );
-
-//         const city = response.data.city.name;
-//         const country = response.data.city.country;
-
-//         // Grouping forecasts by day
-//         const forecastByDay = {};
-//         response.data.list.forEach((entry) => {
-//             const date = new Date(entry.dt_txt).toLocaleDateString();
-//             if (!forecastByDay[date]) {
-//                 forecastByDay[date] = {
-//                     date,
-//                     temperature: entry.main.temp,
-//                     humidity: entry.main.humidity,
-//                     wind_speed: entry.wind.speed,
-//                     description: entry.weather[0].description,
-//                     icon: `http://openweathermap.org/img/wn/${entry.weather[0].icon}.png`,
-//                 };
-//             }
-//         });
-
-//         const forecastArray = Object.values(forecastByDay);
-
-//         res.json({ city, country, forecast: forecastArray });
-//     } catch (error) {
-//         console.error("Error fetching forecast data:", error.message);
-//         res.status(500).json({ error: "Failed to fetch forecast data" });
-//     }
-// });
-
-// 🔹 CREATE - Store Forecast Data in MongoDB
-searchRouter.post("/weather", async (req, res) => {
-    const { location, startDate , endDate} = req.body;
-    console.log(req.body);
-    
-
-
-    // Validate location
-    const country = await validateLocation(location);
-    if (!country) {
-        return res.status(400).json({ error: "Invalid location" });
-    }
-
-    try {
-        // Fetch 5-day forecast
-        const response = await axios.get(
-            `http://api.openweathermap.org/data/2.5/forecast?q=${location}&appid=${process.env.OPENWEATHER_API_KEY}&units=metric`
-        );
-
-        // Structure data
-        const weatherData = response.data.list
-            .filter((entry) => {
-                const entryDate = new Date(entry.dt_txt);
-                return entryDate >= new Date(startDate) && entryDate <= new Date(endDate);
-            })
-            .map((entry) => ({
-                date: entry.dt_txt,
-                temperature: entry.main.temp,
-                humidity: entry.main.humidity,
-                wind_speed: entry.wind.speed,
-                description: entry.weather[0].description,
-                icon: `https://openweathermap.org/img/wn/${entry.weather[0].icon}.png`,
-            }));
-
-        // Store in MongoDB
-        const newWeather = new WeatherModel({ location, country, startDate, endDate, data: weatherData });
-        await newWeather.save();
-
-        res.json(newWeather);
-    } catch (error) {
-        console.error("Error fetching weather data:", error);
-        res.status(500).json({ error: "Failed to fetch weather data" });
-    }
-});
 
 // READ - Get Stored Weather Data
 searchRouter.get("/saved-weather", async (req, res) => {
     try {
-        const weatherRecords = await WeatherModel.find(); // Fetch all saved weather data
+        const weatherRecords = await WeatherModel.find(); 
         if (weatherRecords.length === 0) {
             return res.status(404).json({ error: "No saved weather data found" });
         }
@@ -164,9 +122,45 @@ searchRouter.get("/saved-weather", async (req, res) => {
     }
 });
 
+//STORE
+searchRouter.post("/weather", async (req, res) => {
+    try {
+        const { location, country, startDate, endDate, data } = req.body;
+
+        if (!location || !startDate || !endDate || !data) {
+            return res.status(400).json({ error: "Missing required fields" });
+        }
+
+        const newWeather = new WeatherModel({
+            location,
+            country,
+            startDate,
+            endDate,
+            data,
+        });
+
+        await newWeather.save();
+        res.status(201).json({ message: "Weather data saved successfully!" });
+    } catch (error) {
+        console.error("Error saving weather data:", error);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+
+// Retrieve Saved Weather Data
+searchRouter.get("/saved-weather", async (req, res) => {
+    try {
+        const weatherData = await Weather.find().sort({ createdAt: -1 });
+        res.json(weatherData);
+    } catch (error) {
+        console.error("Error retrieving weather data:", error);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
 
 
-// 🔹 UPDATE - Modify Stored Forecast Data
+
+//  UPDATE - Modify Stored Forecast Data
 searchRouter.put("/weather/:id", async (req, res) => {
     const { id } = req.params;
     const { location } = req.body;
@@ -187,7 +181,7 @@ searchRouter.put("/weather/:id", async (req, res) => {
     }
 });
 
-// 🔹 DELETE - Remove Weather Data from DB
+// DELETE - Remove Weather Data from DB
 searchRouter.delete("/weather/:id", async (req, res) => {
     try {
         await WeatherModel.findByIdAndDelete(req.params.id);
