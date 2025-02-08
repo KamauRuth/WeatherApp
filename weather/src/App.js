@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import './App.css'
+import "./App.css";
+
 const WeatherApp = () => {
     const [location, setLocation] = useState("");
-    // const [startDate, setStartDate] = useState("");
-    // const [endDate, setEndDate] = useState("");
+    const [startDate, setStartDate] = useState("");
+    const [endDate, setEndDate] = useState("");
     const [weatherData, setWeatherData] = useState(null);
     const [forecastData, setForecastData] = useState([]);
     const [savedWeather, setSavedWeather] = useState([]);
@@ -16,41 +17,42 @@ const WeatherApp = () => {
 
     // Fetch Current Weather
     const fetchWeather = async () => {
+        if (!location || !startDate || !endDate) {
+            alert("Please enter a location and select a valid date range.");
+            return;
+        }
+
         try {
+            console.log("Fetched Weather Data:", weatherData);
+
             const response = await axios.get(`http://localhost:5000/weather`, {
-                params: { location },
+                params: { location, startDate, endDate },
             });
             setWeatherData(response.data);
+            setForecastData(response.data.data); // Store only forecast data
         } catch (error) {
-            console.error("Error fetching weather:", error);
-        }
-    };
-
-    // Fetch 5-Day Forecast
-    const fetchForecast = async () => {
-        try {
-            const response = await axios.get(`http://localhost:5000/forecast`, {
-                params: { location },
-            });
-            setForecastData(response.data.forecast);
-        } catch (error) {
-            console.error("Error fetching forecast:", error);
+            console.error("Error fetching weather:", error.response?.data || error.message);
         }
     };
 
     // Save Weather Data to Database
     const saveWeather = async () => {
+        if (!forecastData || forecastData.length === 0) {
+            alert("No weather data to save!");
+            return;
+        }
+
         try {
-            const response = await axios.post(`http://localhost:5000/weather`, {
+            await axios.post(`http://localhost:5000/weather`, {
                 location,
-                // startDate,
-                // endDate,
-                data: forecastData,
+                startDate,
+                endDate,
+                data: forecastData, // ✅ Use forecastData instead of weatherData
             });
             alert("Weather data saved!");
             fetchSavedWeather();
         } catch (error) {
-            console.error("Error saving weather:", error);
+            console.error("Error saving weather:", error.response?.data || error.message);
         }
     };
 
@@ -80,8 +82,9 @@ const WeatherApp = () => {
         try {
             await axios.put(`http://localhost:5000/weather/${editId}`, {
                 location,
-                // startDate,
-                // endDate,
+                startDate,
+                endDate,
+                data: forecastData, // ✅ Use forecastData
             });
             alert("Weather record updated!");
             setEditId(null);
@@ -94,62 +97,46 @@ const WeatherApp = () => {
     return (
         <div className="weather-app">
             <h2>Weather Forecast App</h2>
-            <input 
-                type="text" 
-                placeholder="Enter location" 
-                value={location} 
+            <input
+                type="text"
+                placeholder="Enter location"
+                value={location}
                 onChange={(e) => setLocation(e.target.value)}
             />
-            {/* <input 
-                type="date" 
-                value={startDate} 
-                onChange={(e) => setStartDate(e.target.value)}
-            />
-            <input 
-                type="date" 
-                value={endDate} 
-                onChange={(e) => setEndDate(e.target.value)}
-            /> */}
+            <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+            <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
 
             {editId ? (
                 <button onClick={updateWeather}>Update Data</button>
             ) : (
                 <>
                     <button onClick={fetchWeather}>Get Weather</button>
-                    <button onClick={fetchForecast}>5-Day Forecast</button>
                     <button onClick={saveWeather}>Save Data</button>
                 </>
             )}
 
             <button onClick={fetchSavedWeather}>Retrieve Saved Weather</button>
 
-            {weatherData && (
+            {/* Display Current Weather */}
+            {weatherData && weatherData.data && weatherData.data.length > 0 && (
                 <div className="weather-card">
-                    <h3>{weatherData.city}, {weatherData.country}</h3>
-                    <p>Temperature: {weatherData.temperature}°C</p>
-                    <p>Humidity: {weatherData.humidity}%</p>
-                    <p>Wind Speed: {weatherData.wind_speed} m/s</p>
-                    <p>Description: {weatherData.description}</p>
-                    <img src={weatherData.icon} alt="Weather icon" />
-                </div>
-            )}
-
-            {forecastData.length > 0 && (
-                <div>
-                    <h3>5-Day Forecast</h3>
-                    {forecastData.map((day, index) => (
+                    <h3>
+                        {weatherData.location}, {weatherData.country}, {weatherData.startDate} to {weatherData.endDate}
+                    </h3>
+                    {weatherData.data.map((day, index) => (
                         <div key={index} className="forecast-card">
-                            <p>Date: {day.date}</p>
-                            <p>Temp: {day.temperature}°C</p>
+                            <p>Date: {day.date || `${day.startDate} - ${day.endDate}`}</p>
+                            <p>Temperature: {day.temperature}°C</p>
                             <p>Humidity: {day.humidity}%</p>
-                            <p>Wind: {day.wind_speed} m/s</p>
-                            <p>{day.description}</p>
+                            <p>Wind Speed: {day.wind_speed} m/s</p>
+                            <p>Description: {day.description}</p>
                             <img src={day.icon} alt="Weather icon" />
                         </div>
                     ))}
                 </div>
             )}
 
+            {/* Display Saved Weather Data */}
             {savedWeather.length > 0 && (
                 <div>
                     <h3>Saved Weather Data</h3>
@@ -157,12 +144,14 @@ const WeatherApp = () => {
                         <div key={entry._id} className="saved-card">
                             <h4>{entry.location}, {entry.country}</h4>
                             <p>Stored on: {new Date(entry.createdAt).toLocaleString()}</p>
-                            <button onClick={() => {
-                                setEditId(entry._id);
-                                setLocation(entry.location);
-                                // setStartDate(entry.startDate);
-                                // setEndDate(entry.endDate);
-                            }}>
+                            <button
+                                onClick={() => {
+                                    setEditId(entry._id);
+                                    setLocation(entry.location);
+                                    setStartDate(entry.startDate.split("T")[0]); // ✅ Fix date format
+                                    setEndDate(entry.endDate.split("T")[0]); // ✅ Fix date format
+                                }}
+                            >
                                 Edit
                             </button>
                             <button onClick={() => deleteWeather(entry._id)}>Delete</button>
