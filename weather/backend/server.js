@@ -14,12 +14,37 @@ const cors_options = {
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   };
 
-app.use(cors());
+
 app.use(express.json());
-app.use(cors(cors_options));
-app.use(cors({ origin: "https://weather-app-r4ic.vercel.app/" }));
+
+const allowedOrigins = [
+  "http://localhost:3000", // For local development
+  "https://weather-app-r4ic.vercel.app" // Deployed frontend
+];
+
+const corsOptions = {
+  origin: function (origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+          callback(null, true);
+      } else {
+          callback(new Error("Not allowed by CORS"));
+      }
+  },
+  credentials: true, // Allow cookies and authentication headers
+};
+
+app.use(cors(corsOptions));
 
 app.use('/', searchRouter);
+
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "https://weather-app-r4ic.vercel.app"); // Ensure no trailing slash
+  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.header("Access-Control-Allow-Credentials", "true");
+  console.log("CORS Headers Set");
+  next();
+});
 
 
 app.listen(PORT, () => {
