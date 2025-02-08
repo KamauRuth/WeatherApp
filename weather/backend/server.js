@@ -17,6 +17,8 @@ const cors_options = {
 app.use(cors());
 app.use(express.json());
 app.use(cors(cors_options));
+app.use(cors({ origin: "https://weather-app-r4ic.vercel.app/" }));
+
 app.use('/', searchRouter);
 
 
