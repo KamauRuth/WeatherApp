@@ -19,7 +19,7 @@ app.use(express.json());
 
 const allowedOrigins = [
   "http://localhost:3000", // For local development
-  "https://weather-app-r4ic.vercel.app" // Deployed frontend
+  "https://weatherapp-1-w5v9.onrender.com" // Deployed frontend
 ];
 
 const corsOptions = {
